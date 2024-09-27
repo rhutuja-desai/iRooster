@@ -1,0 +1,83 @@
+ssh humanoid@edubot.local
+vtech@2024
+
+scp /home irooster@192.168.68.44:~/Record/seeed-voicecard/<name>.wav .
+
+
+import time
+import picamera
+import pyaudio	
+import wave
+from datetime import datetime
+from threading import Thread
+
+# Audio settings
+CHUNK = 1024
+FORMAT = pyaudio.paInt16
+CHANNELS = 2
+RATE = 16000
+
+def record_audio(filename, duration):
+    audio = pyaudio.PyAudio()
+    stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
+    frames = []
+
+    for _ in range(int(RATE / CHUNK * duration)):
+        data = stream.read(CHUNK)
+        frames.append(data)
+
+    stream.stop_stream()
+    stream.close()
+    audio.terminate()
+
+    with wave.open(filename, 'wb') as wf:
+        wf.setnchannels(CHANNELS)
+        wf.setsampwidth(audio.get_sample_size(FORMAT))
+        wf.setframerate(RATE)
+        wf.writeframes(b''.join(frames))
+
+def record_video(filename, duration):
+    with picamera.PiCamera() as camera:
+        camera.start_recording(filename)
+        camera.wait_recording(duration)
+        camera.stop_recording()
+
+def main():
+    duration = 60  # seconds
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    audio_filename = f"audio_{timestamp}.wav"
+    video_filename = f"video_{timestamp}.h264"
+
+    # Start recording audio and video simultaneously
+    audio_thread = Thread(target=record_audio, args=(audio_filename, duration))
+    video_thread = Thread(target=record_video, args=(video_filename, duration))
+
+    audio_thread.start()
+    video_thread.start()
+
+    audio_thread.join()
+    video_thread.join()
+
+    # Convert video to mp4
+    mp4_filename = f"video_{timestamp}.mp4"
+    command = f"ffmpeg -framerate 30 -i {video_filename} -c:v libx264 -preset slow -crf 22 {mp4_filename}"
+    os.system(command)
+
+    print(f"Audio and video recording saved as {audio_filename} and {mp4_filename}")
+
+if __name__ == "__main__":
+    main()
+    
+    
+git clone https://github.com/HinTak/seeed-voicecard.git
+cd seeed-voicecard
+sudo ./install.sh
+sudo reboot now
+
+sudo apt-get install python3-pyaudio
+sudo apt-get install python3-picamera2
+
+
+
+
